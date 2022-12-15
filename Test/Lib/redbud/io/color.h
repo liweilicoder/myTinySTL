@@ -102,7 +102,114 @@ enum class state
 
 namespace details {
 
+inline const std::streambuf*& get_coutbuf() {
+    static const std::streambuf* pout = std::cout.rdbuf();
+    return pout;
+}
+
+inline const std::streambuf*& get_cerrbuf() {
+    static const std::streambuf* perr = std::cerr.rdbuf();
+    return perr;
+}
+
+inline const std::streambuf*& get_clogbuf() {
+  static const std::streambuf* plog = std::clog.rdbuf();
+  return plog;
+}
+
+// Gets an unique integer to use as index to iword()
+inline int get_iword() {
+    static int i = std::ios_base::xalloc();
+    return i;
+}
+
+// Determines whether the terminal color of this system can be modified.
+inline bool is_modifiable() {
+#if defined(REDBUD_LINUX) || defined(REDBUD_OSX)
+    static constexpr const char* terms[] = {
+        "ansi", "color", "console", "cygwin", "gnome", "konsole", "kterm",
+        "linux", "msys", "putty", "rxvt", "screen", "vt100", "xterm"
+    };
+    const char* penv = std::getenv("TERM");
+    if (penv == nullptr) return false;
+    bool result = false;
+    for (const auto& t : terms) {
+        if (std::strstr(penv, t) != nullptr) {
+            result = true;
+            break;
+        }
+    }
+#elif defined(REDBUD_WIN)
+    static constexpr bool result = true;
+#endif
+    return result;
+}
+
+/// Determines whether the buffer stream reaches the end.
+inline bool is_terminal(const std::streambuf* buf) {
+    if (buf == get_coutbuf()) {
+#if defined(REDBUD_LINUX) || defined(REDBUD_OSX)
+        return isatty(fileno(stdout)) ? true : false;
+#elif defined(REDBUD_WIN)
+        return _isatty(_fileno(stdout)) ? true : false;
+#endif
+    }
+
+    if (buf == get_cerrbuf() || buf == get_clogbuf()) {
+#if defined(REDBUD_LINUX) || defined(REDBUD_OSX)
+        return isatty(fileno(stderr)) ? true : false;
+#elif defined(REDBUD_WIN)
+        return _isatty(_fileno(stderr)) ? true : false;
+#endif
+    }
+}
+
+// For overloading standard output stream.
+template <typename T>
+using color_return_t = typename std::enable_if<
+    std::is_same<T, redbud::io::format>::value ||
+    std::is_same<T, redbud::io::fg>::value ||
+    std::is_same<T, redbud::io::bg>::value ||
+    std::is_same<T, redbud::io::hfg>::value ||
+    std::is_same<T, redbud::io::hbg>::value,
+    std::ostream&>::type;
+
+template <typename T>
+using state_return_t = typename std::enable_if<
+    std::is_same<T, redbud::io::state>::value,
+    >::type;
+
+// Sets the format and color of the text.
+#if defined(REDBUD_LINUX) || defined(REDBUD_OSX)
+template <typename T>
+inline color_return_t<T> set_color(std::ostream& os, const T& value) {
+    return os << "\033[" << static_cast<int>(value) << "m";
+}
+#endif
+
 }// namespace details
+
+// Overloads standard output stream to control the color of text.
+template <typename T>
+inline details::color_return_t<T>
+operator << (std::ostream& os, const T& value) {
+    return (os.iword(details::get_iword()) ||
+            (details::is_modifiable() &&
+            details::is_terminal(os.rdbuf())))
+        ? details::set_color(os, value) : os; 
+}
+
+template <typename T>
+inline details::state_return_t<T>
+operator << (std::ostream& os, const T& value) {
+    if (value == redbud::io::state::automatic) {
+        os.iword(details::get_iword()) = 0;
+    } else if (value == redbud::io::state::manual) {
+        os.iword(details::get_iword()) = 1;
+    }
+    return os;
+}
+
 }// namespace io
 }// namespace redbud
 #endif // !REDBUD_IO_COLOR_H_
