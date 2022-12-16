@@ -177,7 +177,7 @@ using color_return_t = typename std::enable_if<
 template <typename T>
 using state_return_t = typename std::enable_if<
     std::is_same<T, redbud::io::state>::value,
-    >::type;
+    std::ostream&>::type;
 
 // Sets the format and color of the text.
 #if defined(REDBUD_LINUX) || defined(REDBUD_OSX)
