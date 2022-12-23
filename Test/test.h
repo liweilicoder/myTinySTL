@@ -109,8 +109,8 @@ private:                                                        \
     static TestCase* const testcase_;                           \
 };                                                              \
                                                                 \
-TestCase* const TESTCASE_NAME(testcase_name)::testcase_ =       \
-    UnitTest::GetInstance()->RegisterTestCase(                  \
+TestCase* const TESTCASE_NAME(testcase_name)                    \
+    ::testcase_ = UnitTest::GetInstance()->RegisterTestCase(    \
         new TESTCASE_NAME(testcase_name)(#testcase_name));      \
 void TESTCASE_NAME(testcase_name)::Run()
 /*
